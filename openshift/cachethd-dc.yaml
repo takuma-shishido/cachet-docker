@@ -34,10 +34,10 @@ spec:
       containers:
         -
           name: cachet
-          image: cachethq/docker:2.3.10
+          image: cachethq/docker:3.x
           ports:
             -
-              containerPort: 80
+              containerPort: 8000
               protocol: TCP
           env:
             -
@@ -48,13 +48,13 @@ spec:
               value: 'true'
             -
               name: APP_URL
-              value: 'https://demo.cachethq.io/api/v1'
+              value: 'https://status.example.com'
             -
               name: APP_KEY
               value: 'base64:KEY'
             -
-              name: DB_DRIVER
-              value: pgsql #pqsql mysql
+              name: DB_CONNECTION
+              value: pgsql # pgsql, mysql, mariadb, or sqlite
             -
               name: DB_HOST
               value: db_hostname
@@ -69,27 +69,21 @@ spec:
               value: mypassword
             -
               name: DB_PORT
-              value: 'null'
+              value: '5432'
             -
-              name: DB_PREFIX
-              value: 'null'
-            -
-              name: DOCKER #this is need so when the container restarts it will not have you do setup again.
-              value: 'true'
-            -
-              name: CACHE_DRIVER
-              value: apc
+              name: CACHE_STORE
+              value: database
             -
               name: SESSION_DRIVER
-              value: apc
+              value: database
             -
-              name: QUEUE_DRIVER
+              name: QUEUE_CONNECTION
               value: database
             -
               name: CACHET_EMOJI
               value: 'false'
             -
-              name: MAIL_DRIVER
+              name: MAIL_MAILER
               value: smtp
             -
               name: MAIL_HOST
@@ -104,10 +98,10 @@ spec:
               name: MAIL_PASSWORD
               value: 'null'
             -
-              name: MAIL_ADDRESS
+              name: MAIL_FROM_ADDRESS
               value: 'null'
             -
-              name: MAIL_NAME
+              name: MAIL_FROM_NAME
               value: 'null'
             -
               name: MAIL_ENCRYPTION
@@ -116,13 +110,10 @@ spec:
               name: REDIS_HOST
               value: 'null'
             -
-              name: REDIS_DATABASE
+              name: REDIS_DB
               value: 'null'
             -
               name: REDIS_PORT
-              value: 'null'
-            -
-              name: GITHUB_TOKEN
               value: 'null'
           resources:
           terminationMessagePath: /dev/termination-log
@@ -131,5 +122,5 @@ spec:
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
       securityContext:
-        runAsUser: 0
+        runAsUser: 1001
 status:

@@ -1,121 +1,81 @@
 # Cachet Docker Image
 
-This is the official repository of the [Docker image](https://hub.docker.com/r/cachethq/docker/) for [Cachet](https://github.com/CachetHQ/Cachet).
+This repository builds a Docker image for [Cachet](https://github.com/cachethq/cachet), the open-source status page system.
 
-[Cachet](https://github.com/CachetHQ/Cachet) is a beautiful and powerful open source status page system, a free replacement for services such as StatusPage.io, Status.io and others.
+The default image targets Cachet's `3.x` branch. Cachet 3.x is still under active development, and its migration path from 2.x is not complete. Back up existing data and review the [Cachet 3.x migration guide](https://docs.cachethq.io/v3.x/migration-guide) before upgrading an existing installation.
 
-For full documentation, visit the [Installing Cachet with Docker](https://docs.cachethq.io/docs/get-started-with-docker) page.
+## Quickstart
 
-# Supporting Cachet
+1. Clone this repository.
 
-Cachet is a BSD-3-licensed open source project. If you'd like to support future development, check out the [Cachet Patreon](https://patreon.com/jbrooksuk) campaign.
+   ```shell
+   git clone https://github.com/CachetHQ/Docker.git
+   cd Docker
+   ```
 
-# Quickstart
+2. Set an application key.
 
-1. Clone this repository
+   ```shell
+   export APP_KEY='base64:YOUR_UNIQUE_KEY'
+   ```
 
-  ```shell
-  git clone https://github.com/CachetHQ/Docker.git
-  ```
+   You can generate a key after building the image:
 
-2. Edit the docker-compose.yml file to specify your [ENV variables](/conf/.env.docker).
+   ```shell
+   docker compose build cachet
+   docker compose run --rm cachet php artisan key:generate --show
+   ```
 
+3. Build and start Cachet.
 
-3. To build an image containing a specific Cachet release, set the [`cachet_ver` ARG in the docker-compose.yml](/docker-compose.yml)
+   ```shell
+   docker compose up --build -d
+   ```
 
-  The *main* branch and *cachethq/docker:latest* Docker automated build are a work in progress / development version of the upstream https://github.com/CachetHQ/Cachet project. As such, *main* or *latest* should not be used in a production environment as it can change at anytime.
+4. Create the first user.
 
-  We strongly recommend specifying a stable [Cachet Release](https://github.com/CachetHQ/Cachet/releases) at build time as mentioned above.
+   ```shell
+   docker compose exec cachet php artisan cachet:make:user
+   ```
 
-4. Build and run the image
+Cachet is available on host port 80 and is served from container port 8000.
 
-  ```shell
-  docker-compose build
-  docker-compose up
-  ```
+## Configuration
 
-5. `cachethq/docker`  runs on port 8000 by default. This is exposed on host port 80 when using docker-compose.
+Configure Cachet with Laravel and Cachet 3.x environment variables. See [`conf/.env.docker`](conf/.env.docker) for a minimal example and the [Cachet 3.x installation guide](https://docs.cachethq.io/v3.x/installation) for the current upstream configuration.
 
+The primary database variable is `DB_CONNECTION`. `DB_DRIVER` is accepted as a compatibility alias for existing Cachet 2.x Docker deployments, but new deployments should use `DB_CONNECTION`.
 
-6. Setup the APP_KEY
+To build a different Cachet ref, set the `cachet_ver` build argument in [`docker-compose.yml`](docker-compose.yml). The default is `3.x`.
 
-Whilst the container is up and running, find the name of the Cachet container via `docker ps`.
+## Runtime Processes
 
-Run `docker exec -i ID_OF_THE_CONTAINER php artisan key:generate`.
+The image runs these processes under Supervisor:
 
-Replace `${APP_KEY:-null}` in `docker-compose.yml` with the newly generated Application key.
+- nginx
+- PHP-FPM
+- Laravel queue worker
+- Laravel scheduler
 
-__Note:__ make sure you include `base64:` prefix. E.g. `base64:YOUR_UNIQUE_KEY`
+Application, nginx, and PHP-FPM logs are written to Docker stdout and stderr.
 
-Restart the Docker containers.
+## Development
 
+To develop Cachet with this image, clone Cachet and install its dependencies:
 
-# Docker Hub Automated build
-
-`cachethq/docker` is available as a [Docker Hub Trusted Build](https://hub.docker.com/r/cachethq/docker/).
-
-For a full list of Cachet versions released as Docker images  please see the [list of Docker hub tags](https://hub.docker.com/r/cachethq/docker/tags/).
-
-Please use a [tagged Cachet Docker image release](https://github.com/CachetHQ/Docker/releases) or one of the tagged builds from https://hub.docker.com/r/cachethq/docker/tags/ with `docker pull cachethq/docker:2.3.12`.
-
-# Debugging
-
-* The services such as Cachet, supervisord, nginx, and php-fpm log to `stdout` and `stderr`, and are visible in the Docker runtime output. 
-
-* Setting the `DEBUG` Docker environment variable within the `docker-compose.yml` file or at runtime to `true` will enable debugging of the container entrypoint init script.
-
-# Testing
-
-Pull requests must pass the [Bash Automated Testing System](https://github.com/sstephenson/bats) tests, which run on [Travis CI](https://travis-ci.org/CachetHQ/Docker) via located in the [test](test) directory.
-
-Use `make test` to manually run the tests.
-
-
-# Development of Cachet using this docker environment
-
-1.  Clone the official repo of CachetHQ/Docker:
-
-  ```shell
-  git clone https://github.com/CachetHQ/Docker.git cachet-docker
-  cd cachet-docker
-  git tag -l
-  git checkout $LATEST_TAG
-  ```
-2. Clone the official repo of CachetHQ/Cachet here and do composer install:
-
-  ```shell
-  git clone https://github.com/CachetHQ/Cachet.git
-  ```
-
-3. Setup the Cachet project:
-
-Note: This requires [Composer](https://getcomposer.org/) be installed on your Docker host.  
-
- ```shell
+```shell
+git clone -b 3.x https://github.com/cachethq/cachet.git Cachet
 cd Cachet
 composer install
-cp ../conf/.env.docker ./.env
+cp ../conf/.env.docker .env
 cd ..
 ```
 
-4. Edit the docker-compose.yml file to bind mount the repo as a volume:
+Bind mount the source directory into the `cachet` service:
 
-  ```yaml
- cachet:
+```yaml
+services:
+  cachet:
     volumes:
-      - ./Cachet/:/var/www/html/
-    ...  
-  ```
-
-5. Build and run the container:
-
-  ```shell
-  docker-compose up
-  ```
-
-6. Open new terminal and run the following commands after getting container name via `docker ps`:
-
-  ```shell
-  docker exec -i cachetdocker_cachet_1  php artisan key:generate
-  docker exec -i cachetdocker_cachet_1  php artisan app:install
-  ```
+      - ./Cachet:/var/www/html
+```

@@ -1,8 +1,6 @@
-version: "3"
-
 services:
   postgres:
-    image: postgres:12-alpine
+    image: postgres:16-alpine
     volumes:
       - /var/lib/postgresql/data
     environment:
@@ -13,23 +11,25 @@ services:
     build:
       context: .
       args:
-        - cachet_ver=2.4
+        - cachet_ver=3.x
     ports:
       - 80:8000
     links:
       - postgres:postgres
     environment:
-      - DB_DRIVER=pgsql
+      - DB_CONNECTION=pgsql
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_DATABASE=postgres
       - DB_USERNAME=postgres
       - DB_PASSWORD=postgres
-      - DB_PREFIX=chq_
       - APP_KEY=${APP_KEY:-null}
-      - APP_LOG=errorlog
+      - LOG_CHANNEL=stderr
       - APP_ENV=${APP_ENV:-production}
       - APP_DEBUG=false
+      - CACHE_STORE=database
+      - SESSION_DRIVER=database
+      - QUEUE_CONNECTION=database
       - DEBUG=false
     depends_on:
       - postgres

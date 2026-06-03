@@ -1,106 +1,90 @@
-FROM nginx:1.17.8-alpine
+FROM php:8.4-fpm-bookworm
 
 EXPOSE 8000
 CMD ["/sbin/entrypoint.sh"]
 
-ARG cachet_ver
-ARG archive_url
+ARG cachet_ver=3.x
+ARG archive_url=https://github.com/cachethq/cachet/archive/${cachet_ver}.tar.gz
+ARG DEBIAN_FRONTEND=noninteractive
 
-ENV cachet_ver ${cachet_ver:-2.4}
-ENV archive_url ${archive_url:-https://github.com/cachethq/Cachet/archive/${cachet_ver}.tar.gz}
+ENV CACHET_VERSION=${cachet_ver}
 
-ENV COMPOSER_VERSION 1.9.0
-
-RUN apk add --no-cache --update \
-    mysql-client \
-    php7 \
-    php7-apcu \
-    php7-bcmath \
-    php7-ctype \
-    php7-curl \
-    php7-dom \
-    php7-fileinfo \
-    php7-fpm \
-    php7-gd \
-    php7-iconv \
-    php7-intl \
-    php7-json \
-    php7-mbstring \
-    php7-mcrypt \
-    php7-mysqlnd \
-    php7-opcache \
-    php7-openssl \
-    php7-pdo \
-    php7-pdo_mysql \
-    php7-pdo_pgsql \
-    php7-pdo_sqlite \
-    php7-phar \
-    php7-posix \
-    php7-redis \
-    php7-session \
-    php7-simplexml \
-    php7-soap \
-    php7-sqlite3 \
-    php7-tokenizer \
-    php7-xml \
-    php7-xmlwriter \
-    php7-zip \
-    php7-zlib \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    default-mysql-client \
+    git \
+    libcurl4-openssl-dev \
+    libfreetype6-dev \
+    libicu-dev \
+    libjpeg62-turbo-dev \
+    libonig-dev \
+    libpng-dev \
+    libpq-dev \
+    libsqlite3-dev \
+    libxml2-dev \
+    libzip-dev \
+    nginx \
     postfix \
-    postgresql \
     postgresql-client \
-    sqlite \
+    sqlite3 \
     sudo \
-    wget sqlite git curl bash grep \
-    supervisor
+    supervisor \
+    unzip \
+    wget \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        curl \
+        dom \
+        gd \
+        intl \
+        mbstring \
+        opcache \
+        pcntl \
+        pdo_mysql \
+        pdo_pgsql \
+        pdo_sqlite \
+        simplexml \
+        soap \
+        zip \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && rm -rf /var/lib/apt/lists/*
 
-# forward request and error logs to docker log collector
-RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
-    ln -sf /dev/stderr /var/log/nginx/error.log && \
-    ln -sf /dev/stdout /var/log/php7/error.log && \
-    ln -sf /dev/stderr /var/log/php7/error.log
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-RUN adduser -S -s /bin/bash -u 1001 -G root www-data
+RUN useradd --uid 1001 --gid 0 --home-dir /var/www/html --shell /bin/bash cachet \
+    && echo "cachet ALL=(ALL:ALL) NOPASSWD:SETENV: /usr/sbin/postfix" >> /etc/sudoers
 
-RUN echo "www-data	ALL=(ALL:ALL)	NOPASSWD:SETENV:	/usr/sbin/postfix" >> /etc/sudoers
+WORKDIR /var/www/html
 
-RUN touch /var/run/nginx.pid && \
-    chown -R www-data:root /var/run/nginx.pid
+RUN wget -O /tmp/cachet.tar.gz "${archive_url}" \
+    && tar xzf /tmp/cachet.tar.gz --strip-components=1 \
+    && rm /tmp/cachet.tar.gz \
+    && cp .env.example .env \
+    && composer install --no-dev --optimize-autoloader \
+    && composer config --json repositories.cachet-core '{"type":"vcs","url":"https://github.com/cachethq/core.git","no-api":true}' \
+    && composer update cachethq/core --no-dev --with-dependencies --optimize-autoloader \
+    && php artisan vendor:publish --tag=cachet --force \
+    && if ! find database/migrations -name '*_create_jobs_table.php' | grep -q .; then \
+        php artisan queue:table \
+        && mv database/migrations/*_create_jobs_table.php database/migrations/0001_01_01_000002_create_jobs_table.php; \
+    fi \
+    && rm -rf bootstrap/cache/*
 
-RUN chown -R www-data:root /etc/php7/php-fpm.d
-
-RUN mkdir -p /var/www/html && \
-    mkdir -p /usr/share/nginx/cache && \
-    mkdir -p /var/cache/nginx && \
-    mkdir -p /var/lib/nginx && \
-    chown -R www-data:root /var/www /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx/
-
-# Install composer
-RUN wget https://getcomposer.org/installer -O /tmp/composer-setup.php && \
-    wget https://composer.github.io/installer.sig -O /tmp/composer-setup.sig && \
-    php -r "if (hash('SHA384', file_get_contents('/tmp/composer-setup.php')) !== trim(file_get_contents('/tmp/composer-setup.sig'))) { unlink('/tmp/composer-setup.php'); echo 'Invalid installer' . PHP_EOL; exit(1); }" && \
-    php /tmp/composer-setup.php --version=$COMPOSER_VERSION --install-dir=bin && \
-    php -r "unlink('/tmp/composer-setup.php');"
-
-WORKDIR /var/www/html/
-USER 1001
-
-RUN wget ${archive_url} && \
-    tar xzf ${cachet_ver}.tar.gz --strip-components=1 && \
-    chown -R www-data:root /var/www/html && \
-    rm -r ${cachet_ver}.tar.gz && \
-    php /bin/composer.phar global require "hirak/prestissimo:^0.3" && \
-    php /bin/composer.phar install -o && \
-    rm -rf bootstrap/cache/*
-
-COPY conf/php-fpm-pool.conf /etc/php7/php-fpm.d/www.conf
+COPY conf/php-fpm-pool.conf /usr/local/etc/php-fpm.d/www.conf
 COPY conf/supervisord.conf /etc/supervisor/supervisord.conf
 COPY conf/nginx.conf /etc/nginx/nginx.conf
 COPY conf/nginx-site.conf /etc/nginx/conf.d/default.conf
-COPY conf/.env.docker /var/www/html/.env
 COPY entrypoint.sh /sbin/entrypoint.sh
 
-USER root
-RUN chmod g+rwx /var/run/nginx.pid && \
-    chmod -R g+rw /var/www /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx/ /etc/php7/php-fpm.d storage
+RUN ln -sf /dev/stdout /var/log/nginx/access.log \
+    && ln -sf /dev/stderr /var/log/nginx/error.log \
+    && mkdir -p /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx /run/nginx \
+    && chown -R cachet:root /var/www/html /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx /run/nginx \
+    && chmod -R g+rwX /var/www/html /usr/share/nginx/cache /var/cache/nginx /var/lib/nginx /run/nginx /usr/local/etc/php-fpm.d \
+    && chmod +x /sbin/entrypoint.sh
+
 USER 1001

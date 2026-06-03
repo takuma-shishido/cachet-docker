@@ -7,7 +7,7 @@
 #/   -h | --help        Show this message.
 #/   -d | --delete      Delete a tag / release
 #/   -c | --check       Check current releases on GitHub
-#/   <version>          Target Cachet Version (ex: v2.3.13)
+#/   <version>          Target Cachet Version (ex: v3.0.0)
 #/
 set -e
 
@@ -19,7 +19,7 @@ usage () {
 [ $# -eq 0 ] && usage 1
 
 cachet_version=
-main_version=2.4
+main_version=3.x
 
 do_release () {
 
@@ -39,7 +39,7 @@ fi
 
 # Modify Dockerfile, commit, tag, and push
 echo "Creating tag for $cachet_version"
-gsed s/$main_version/"$cachet_version"/g -i Dockerfile
+gsed "s/cachet_ver=$main_version/cachet_ver=$cachet_version/" -i Dockerfile
 git commit -am "Cachet $cachet_version release"
 git tag -a "$cachet_version" -m "Cachet Release $cachet_version"
 git push origin cachet-"$cachet_version"
