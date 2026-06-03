@@ -48,6 +48,8 @@ The primary database variable is `DB_CONNECTION`. `DB_DRIVER` is accepted as a c
 
 To build a different Cachet ref, set the `cachet_ver` build argument in [`docker-compose.yml`](docker-compose.yml). The default is `3.x`.
 
+The image runs as UID `1001`. Existing bind mounts or named volumes mounted under `/var/www/html`, including `/var/www/html/storage`, must be writable by UID `1001` before the container starts.
+
 ## Runtime Processes
 
 The image runs these processes under Supervisor:
