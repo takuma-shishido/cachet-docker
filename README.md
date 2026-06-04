@@ -9,8 +9,8 @@ The default image targets Cachet's `3.x` branch. Cachet 3.x is still under activ
 1. Clone this repository.
 
    ```shell
-   git clone https://github.com/CachetHQ/Docker.git
-   cd Docker
+   git clone https://github.com/takuma-shishido/cachet-docker.git
+   cd cachet-docker
    ```
 
 2. Set an application key.
